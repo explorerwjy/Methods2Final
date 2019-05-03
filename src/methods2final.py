@@ -58,7 +58,7 @@ def to_var(x):
     return Variable(x)
 
 class VAE(nn.Module):
-    def __init__(self, image_size=4490 , h_dim=200, z_dim=20):
+    def __init__(self, image_size=4490 , h_dim=400, z_dim=400):
         super(VAE, self).__init__()
         self.encoder = nn.Sequential(
                 nn.Linear(image_size, h_dim),
@@ -91,6 +91,44 @@ def loss_fn(recon_x, x, mu, logvar):
     return BCE + KLD, BCE, KLD
 
 
+class VAE2(nn.Module):
+    def __init__(self, image_size=4490, h_dim_1=2000, h_dim_2=200, h_dim_3=20, z_dim=5):
+        super(VAE2, self).__init__()
+        self.encoder = nn.Sequential(
+                nn.Linear(image_size, h_dim_1),
+                nn.LeakyReLU(0.5),
+                nn.Dropout(0.5),
+                nn.Linear(h_dim_1, h_dim_2),
+                nn.LeakyReLU(0.5),
+                nn.Dropout(0.5),
+                nn.Linear(h_dim_2, h_dim_3),
+                nn.LeakyReLU(0.5),
+                nn.Dropout(0.5),
+                nn.Linear(h_dim_3, z_dim*2)
+                )
+
+        self.decoder = nn.Sequential(
+                nn.Linear(z_dim, h_dim_3),
+                nn.ReLU(),
+                nn.Linear(h_dim_3, h_dim_2),
+                nn.ReLU(),
+                nn.Linear(h_dim_2, h_dim_1),
+                nn.ReLU(),
+                nn.Linear(h_dim_1, image_size),
+                nn.Sigmoid()
+                )
+
+    def reparameterize(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
+        esp = to_var(torch.randn(*mu.size()))
+        z = mu + std * esp
+        return z
+
+    def forward(self, x):
+        h = self.encoder(x)
+        mu, logvar = torch.chunk(h, 2, dim=1)
+        z = self.reparameterize(mu, logvar)
+        return self.decoder(z), mu, logvar
 
 def train(data_loader, vae, optimizer, batch_size=128, epochs=100):
     for epoch in range(epochs):
@@ -107,6 +145,6 @@ def train(data_loader, vae, optimizer, batch_size=128, epochs=100):
             #    print("Epoch[{}/{}] Loss: {:.3f}".format(epoch+1, epochs, loss.data.detach()/batch_size))
             #    print(loss.data.detach(), bce.data.detach(), kld.data.detach())
             #    print(cells.shape, recon_cells.shape)
-        if epoch%50 == 0:
+        if epoch%10 == 0:
             print("Epoch[{}/{}] Loss: {:.3f}".format(epoch+1, epochs, loss.data.detach()/batch_size))
 
